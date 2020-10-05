@@ -89,16 +89,9 @@ set.test <- set.test[, -(1:5)]
 dim(set.train)
 dim(set.test)
 ```
-## Correlation Analysis
-First a correlation analysis is performed
-```{r corre, message=FALSE}
-corr_matrix <- cor(set.train[ , -54])
-corrplot(corr_matrix, order = "FPC", method = "color", type = "lower",
-         tl.cex = 0.6, tl.col = rgb(0, 0, 0))
-```
-Dark colors correspond to high correlated variables. As can be seen in the graph, the number of correlated variables is small.
 
 ## Models
+In order to predict the outcome variable We will compare two methods and choose the one having the best accuracy. The methods are Decision Tree and Random Forest.
 
 ```{r tree, message=FALSE}
 # fit
