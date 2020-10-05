@@ -1,30 +1,136 @@
 ---
-title: "proyecto"
+title: "Proyecto"
 author: "Sebastian Jaroszewicz"
 date: "3/10/2020"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r global_options}
+knitr::opts_chunk$set(fig.path='Figs/')
 ```
 
-## Including Plots
+## Summary
 
-You can also embed plots, for example:
+This R Markdown document is the final report of the *Practical Machine Learning* Course of the *John Hopkins Data Science Specialization Specialization* in Data Science. The project was built up in RStudio and published in html format. The pourpouse of this work is to predict  the manner in which a group of six people did some exercise described below and use the prediction model to predict 20 different test cases.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+More information is available from the website here:
+
+<http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.>
+
+Full reference:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. **“Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human ’13)”**. Stuttgart, Germany: ACM SIGCHI, 2013.
+
+## Data Loading and Preprocessing
+Load the required libraries for the analysis and set a seed.
+
+```{r bibliotecas, message=FALSE}
+library(ggplot2)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(corrplot)
+set.seed(5256)
+```
+```{r load, message=FALSE}
+url.train <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url.test  <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# Download data sets
+data.train <- read.csv(url(url.train))
+data.test <- read.csv(url(url.test))
+dim(data.train)
+dim(data.test)
+
+# Create two partitions within training data set.
+train.partition <- createDataPartition(data.train$classe, p=0.7, list=FALSE)
+set.train <- data.train[train.partition,]
+set.test <- data.train[-train.partition,]
+dim(set.train)
+dim(set.test)
+```
+There are two sets with 160 variables each. Both sets contains a lot of NAs that must be removed together the near zero variance (NZV) and the ID variables.
+```{r remover,message=FALSE}
+# remove NZV
+nzv <- nearZeroVar(set.train)
+set.train <- set.train[,-nzv]
+set.test <- set.test[,-nzv]
+
+# remove NAs
+nas <- sapply(set.train, function(x) mean(is.na(x))) > 0.95
+set.train <- set.train[,-nas == FALSE] 
+set.test <- set.test[,-nas == FALSE]
+
+#columns 1 to 5 are identification variables
+set.train <- set.train[, -(1:5)]
+set.test <- set.test[, -(1:5)]
+dim(set.train)
+dim(set.test)
+```
+## Correlation Analysis
+First a correlation analysis is performed
+```{r corre, message=FALSE}
+corr_matrix <- cor(set.train[ , -54])
+corrplot(corr_matrix, order = "FPC", method = "color", type = "lower",
+         tl.cex = 0.6, tl.col = rgb(0, 0, 0))
+```
+Dark colors correspond to high correlated variables. As can be seen in the graph, the number of correlated variables is small.
+
+## Models
+
+```{r tree, message=FALSE}
+# fit
+fit.dt <- rpart(classe ~ ., data = set.train, method="class")
+fancyRpartPlot(fit.dt)
+
+# prediction
+predict.dt <- predict(fit.dt, set.test, type="class")
+conf.mat.dt <- confusionMatrix(predict.dt, set.test$classe)
+conf.mat.dt
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r rf, message=FALSE}
+# fit
+fit.rf <- trainControl(method="cv", number=3, verboseIter=FALSE)
+mfit.rf <- train(classe ~ ., data=set.train, method="rf",trControl=fit.rf)
+mfit.rf$finalModel
+
+# prediction
+predict.rf <- predict(mfit.rf, set.test)
+conf.mat.rf <- confusionMatrix(predict.rf, set.test$classe)
+conf.mat.rf
+```
+
+Comparing the accuracy of both models we can see that
+
+Decision Tree: 0.731
+Random Forest: 0.9978
+
+Therefore the Random Forest method is selected
+
+```{r testing, message=FALSE}
+prediction <- predict(mfit.rf, data.test)
+prediction
+```
